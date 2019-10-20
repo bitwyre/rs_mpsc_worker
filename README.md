@@ -1,8 +1,8 @@
-# MPSC Queue (Rust)
+# MPSC Queue - Consumer Worker (Rust)
 
-![Build Status](https://github.com/bitwyre/rs_mpsc_queue/workflows/Build/badge.svg)
+![Build Status](https://github.com/bitwyre/rs_mpsc_worker/workflows/Build/badge.svg)
 
-Generic MPSC Queue with non-mutable closure invariance.
+Generic MPSC Queue - Consumer Worker thread, with non-mutable closure invariance.
 
 ## Authors
 
