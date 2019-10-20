@@ -45,19 +45,58 @@ mod unit_tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     const LOOP_COUNT: u64 = 10_000;
-    static RESULT: AtomicU64 = AtomicU64::new(0);
-
-    fn do_nothing_handler(value: u64) {
-        RESULT.store(value, Ordering::Relaxed);
-    }
+    const PRODUCER_COUNT: u8 = 4;
 
     #[test]
-    fn shutdown_test() {
-        let (queue_tx, mpsc_instance) = MPSCQueue::start(Arc::new(&do_nothing_handler));
+    fn single_producer_shutdown_test() {
+        // Prepare test facilities
+        static RESULT0: AtomicU64 = AtomicU64::new(0);
+        fn global_store_handler(value: u64) {
+            RESULT0.store(value, Ordering::Relaxed);
+        }
+        // Instantiate and start MPSCQueue consumer thread
+        let (queue_tx, mpsc_instance) = MPSCQueue::start(Arc::new(&global_store_handler));
+        // Send data to MPSCQueue
         for i in 0..LOOP_COUNT {
             let _ = queue_tx.send(i);
         }
+        // Shutdown MPSCQueue consumer by giving back the queue sender
         mpsc_instance.shutdown(vec![queue_tx]);
-        assert_eq!(RESULT.load(Ordering::Relaxed), LOOP_COUNT - 1);
+        // Consumer work result assertions
+        assert_eq!(RESULT0.load(Ordering::Relaxed), LOOP_COUNT - 1);
+    }
+
+    #[test]
+    fn multi_producers_shutdown_test() {
+        // Prepare test facilities
+        static RESULT1: AtomicU64 = AtomicU64::new(0);
+        fn global_add_handler(value: u64) {
+            RESULT1.fetch_add(value, Ordering::Relaxed);
+        }
+        // Instantiate and start MPSCQueue consumer thread
+        let (queue_tx, mpsc_instance) = MPSCQueue::start(Arc::new(&global_add_handler));
+        // Declare common closure for sender/producer threads
+        let loop_lambda = move |queue_tx: Sender<u64>| {
+            for i in 0..LOOP_COUNT {
+                let _ = queue_tx.send(i);
+            }
+        };
+        // Spawn producer threads and collect its handles for joining
+        let mut thread_handles: Vec<JoinHandle<()>> = Vec::new();
+        for _ in 1..PRODUCER_COUNT {
+            let tx_clone = queue_tx.clone();
+            thread_handles.push(spawn(move || loop_lambda(tx_clone)));
+        }
+        thread_handles.push(spawn(move || loop_lambda(queue_tx)));
+        // Shutdown MPSCQueue consumer thread, but gives no queue sender as its moved to
+        // and automatically dropped by producer threads
+        mpsc_instance.shutdown(Vec::new());
+        // Gracefully waits for producer threads to finish their works
+        while let Some(join_handle) = thread_handles.pop() {
+            let _ = join_handle.join();
+        }
+        // Consumer work result assertions
+        let expected_result: u64 = (LOOP_COUNT - 1) * LOOP_COUNT * (PRODUCER_COUNT as u64) / 2;
+        assert_eq!(RESULT1.load(Ordering::Relaxed), expected_result);
     }
 }
