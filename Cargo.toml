@@ -1,5 +1,5 @@
 [package]
-name = "mpsc_queue"
+name = "mpscq_consumer_worker"
 version = "0.1.0"
 edition = "2018"
 

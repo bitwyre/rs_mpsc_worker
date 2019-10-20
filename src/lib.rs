@@ -5,12 +5,12 @@ use std::marker::PhantomData;
 use std::sync::mpsc::channel;
 use std::thread::{spawn, JoinHandle};
 
-pub struct MPSCQueue<T: Sized> {
+pub struct MPSCQConsumerWorker<T: Sized> {
     thread_handle: JoinHandle<()>,
     phantom: PhantomData<T>,
 }
 
-impl<T> MPSCQueue<T>
+impl<T> MPSCQConsumerWorker<T>
 where
     T: Send + Sized,
 {
@@ -25,7 +25,7 @@ where
         });
         (
             queue_sender,
-            Self {
+            MPSCQConsumerWorker {
                 thread_handle,
                 phantom: PhantomData,
             },
@@ -55,7 +55,7 @@ mod unit_tests {
             RESULT0.store(value, Ordering::Relaxed);
         }
         // Instantiate and start MPSCQueue consumer thread
-        let (queue_tx, mpsc_instance) = MPSCQueue::start(Arc::new(&global_store_handler));
+        let (queue_tx, mpsc_instance) = MPSCQConsumerWorker::start(Arc::new(&global_store_handler));
         // Send data to MPSCQueue
         for i in 0..LOOP_COUNT {
             let _ = queue_tx.send(i);
@@ -74,7 +74,7 @@ mod unit_tests {
             RESULT1.fetch_add(value, Ordering::Relaxed);
         }
         // Instantiate and start MPSCQueue consumer thread
-        let (queue_tx, mpsc_instance) = MPSCQueue::start(Arc::new(&global_add_handler));
+        let (queue_tx, mpsc_instance) = MPSCQConsumerWorker::start(Arc::new(&global_add_handler));
         // Declare common closure for sender/producer threads
         let loop_lambda = move |queue_tx: Sender<u64>| {
             for i in 0..LOOP_COUNT {
