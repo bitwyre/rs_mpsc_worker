@@ -1,8 +1,8 @@
-pub use std::sync::mpsc::{SendError, Sender};
+pub use crossbeam_channel::{SendError, SendTimeoutError, Sender};
 pub use std::sync::Arc;
 
+use crossbeam_channel::unbounded;
 use std::marker::PhantomData;
-use std::sync::mpsc::channel;
 use std::thread::{spawn, JoinHandle};
 
 pub struct MPSCQConsumerWorker<T: Sized> {
@@ -15,7 +15,7 @@ where
     T: Send + Sized,
 {
     pub fn start(new_queue_handler: Arc<&'static (dyn Fn(T) + Send + Sync)>) -> (Sender<T>, Self) {
-        let (queue_sender, queue_receiver) = channel();
+        let (queue_sender, queue_receiver) = unbounded();
         let handler_clone = new_queue_handler.clone();
         let thread_handle = spawn(move || loop {
             match queue_receiver.recv() {
