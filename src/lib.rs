@@ -5,6 +5,8 @@ use crossbeam_channel::unbounded;
 use std::marker::PhantomData;
 use std::thread::{spawn, JoinHandle};
 
+pub type QueueConsumeCallback<T> = Arc<&'static (dyn Fn(T) + Send + Sync)>;
+
 pub struct MPSCQConsumerWorker<T: Sized> {
     thread_handle: JoinHandle<()>,
     phantom: PhantomData<T>,
@@ -14,13 +16,12 @@ impl<T> MPSCQConsumerWorker<T>
 where
     T: Send + Sized,
 {
-    pub fn start(new_queue_handler: Arc<&'static (dyn Fn(T) + Send + Sync)>) -> (Sender<T>, Self) {
+    pub fn start(new_queue_handler: QueueConsumeCallback<T>) -> (Sender<T>, Self) {
         let (queue_sender, queue_receiver) = unbounded();
         let handler_clone = new_queue_handler.clone();
-        let thread_handle = spawn(move || loop {
-            match queue_receiver.recv() {
-                Ok(new_data) => handler_clone(new_data),
-                Err(_) => break,
+        let thread_handle = spawn(move || {
+            while let Ok(new_data) = queue_receiver.recv() {
+                handler_clone(new_data)
             }
         });
         (
