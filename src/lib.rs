@@ -17,10 +17,9 @@ where
     pub fn start(new_queue_handler: Arc<&'static (dyn Fn(T) + Send + Sync)>) -> (Sender<T>, Self) {
         let (queue_sender, queue_receiver) = channel();
         let handler_clone = new_queue_handler.clone();
-        let thread_handle = spawn(move || loop {
-            match queue_receiver.recv() {
-                Ok(new_data) => handler_clone(new_data),
-                Err(_) => break,
+        let thread_handle = spawn(move || {
+            while let Ok(new_data) = queue_receiver.recv() {
+                handler_clone(new_data)
             }
         });
         (
